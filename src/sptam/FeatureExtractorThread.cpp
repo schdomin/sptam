@@ -35,8 +35,8 @@
 
 FeatureExtractorThread::FeatureExtractorThread(
   const cv::Mat& image,
-  const cv::FeatureDetector& featureDetector,
-  const cv::DescriptorExtractor& descriptorExtractor
+  cv::Ptr<cv::FeatureDetector> featureDetector,
+  cv::Ptr<cv::DescriptorExtractor> descriptorExtractor
 )
   : image_( image )
   , featureDetector_( featureDetector )
@@ -51,7 +51,7 @@ void FeatureExtractorThread::Extract()
     startStep = GetSeg();
   #endif
 
-  featureDetector_.detect(image_, keyPoints_);
+  featureDetector_->detect(image_, keyPoints_);
 
   #ifdef SHOW_PROFILING
     endStep = GetSeg();
@@ -59,7 +59,7 @@ void FeatureExtractorThread::Extract()
     startStep = GetSeg();
   #endif
 
-  descriptorExtractor_.compute(image_, keyPoints_, descriptors_);
+  descriptorExtractor_->compute(image_, keyPoints_, descriptors_);
 
   #ifdef SHOW_PROFILING
     endStep = GetSeg();

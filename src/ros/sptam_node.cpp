@@ -31,6 +31,7 @@
 #include "../sptam/FeatureExtractorThread.hpp"
 #include "../sptam/utils/projective_math.hpp"
 
+#include <opencv2/xfeatures2d.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -72,59 +73,60 @@ inline void TFPose2CameraPose(const tf::Pose& pose, CameraPose& cameraPose)
 // Set Opencv Algorithm parameters from ROS parameter server
 void setParameters( ros::NodeHandle& nodeHandle, cv::Ptr<cv::Algorithm>&& algorithm, const std::string& base_name )
 {
-  std::vector<cv::String> parameters;
-  algorithm->getParams( parameters );
-
-  for ( const auto& param : parameters )
-  {
-    if ( nodeHandle.hasParam(base_name + "/" + param) )
-    {
-      int param_type = algorithm->paramType( param );
-
-      switch ( param_type )
-      {
-        case cv::Param::INT:
-        {
-          int val;
-          nodeHandle.getParam(base_name + "/" + param, val);
-          algorithm->set(param, val);
-          std::cout << "  " << param << ": " << val << std::endl;
-          break;
-        }
-
-        case cv::Param::BOOLEAN:
-        {
-          bool val;
-          nodeHandle.getParam(base_name + "/" + param, val);
-          algorithm->set(param, val);
-          std::cout << "  " << param << ": " << val << std::endl;
-          break;
-        }
-
-        case cv::Param::REAL:
-        {
-          double val;
-          nodeHandle.getParam(base_name + "/" + param, val);
-          algorithm->set(param, val);
-          std::cout << "  " << param << ": " << val << std::endl;
-          break;
-        }
-
-        case cv::Param::STRING:
-        {
-          std::string val;
-          nodeHandle.getParam(base_name + "/" + param, val);
-          algorithm->set(param, val);
-          std::cout << "  " << param << ": " << val << std::endl;
-          break;
-        }
-
-        default:
-          ROS_ERROR_STREAM("unknown/unsupported parameter type for ");
-          break;
-      }
-    }
-  }
+//ds DISABLED
+//  std::vector<cv::String> parameters;
+//  algorithm->getParams( parameters );
+//
+//  for ( const auto& param : parameters )
+//  {
+//    if ( nodeHandle.hasParam(base_name + "/" + param) )
+//    {
+//      int param_type = algorithm->paramType( param );
+//
+//      switch ( param_type )
+//      {
+//        case cv::Param::INT:
+//        {
+//          int val;
+//          nodeHandle.getParam(base_name + "/" + param, val);
+//          algorithm->set(param, val);
+//          std::cout << "  " << param << ": " << val << std::endl;
+//          break;
+//        }
+//
+//        case cv::Param::BOOLEAN:
+//        {
+//          bool val;
+//          nodeHandle.getParam(base_name + "/" + param, val);
+//          algorithm->set(param, val);
+//          std::cout << "  " << param << ": " << val << std::endl;
+//          break;
+//        }
+//
+//        case cv::Param::REAL:
+//        {
+//          double val;
+//          nodeHandle.getParam(base_name + "/" + param, val);
+//          algorithm->set(param, val);
+//          std::cout << "  " << param << ": " << val << std::endl;
+//          break;
+//        }
+//
+//        case cv::Param::STRING:
+//        {
+//          std::string val;
+//          nodeHandle.getParam(base_name + "/" + param, val);
+//          algorithm->set(param, val);
+//          std::cout << "  " << param << ": " << val << std::endl;
+//          break;
+//        }
+//
+//        default:
+//          ROS_ERROR_STREAM("unknown/unsupported parameter type for ");
+//          break;
+//      }
+//    }
+//  }
 }
 
 // ================================================================== //
@@ -155,7 +157,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     nhp.param<std::string>("FeatureDetector/Name", detectorName, "GFTT");
 
     std::cout << "detector: " << detectorName << std::endl;
-    featureDetector_ = cv::FeatureDetector::create( detectorName );
+    featureDetector_ = cv::GFTTDetector::create();
 
     if ( not featureDetector_ )
       ROS_ERROR_STREAM("could not load feature detector with name " << detectorName);
@@ -169,7 +171,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     nhp.param<std::string>("DescriptorExtractor/Name", extractorName, "BRIEF");
 
     std::cout << "extractor: " << extractorName << std::endl;
-    descriptorExtractor_ = cv::DescriptorExtractor::create( extractorName );
+    descriptorExtractor_ = cv::xfeatures2d::BriefDescriptorExtractor::create();
 
     if ( not descriptorExtractor_ )
       ROS_ERROR_STREAM("could not load descriptor extractor with name " << extractorName);
@@ -396,8 +398,8 @@ void sptam::sptam_node::onImages(
     startStep = GetSeg();
   #endif
 
-  FeatureExtractorThread featureExtractorThreadLeft(imageLeft, *featureDetector_, *descriptorExtractor_);
-  FeatureExtractorThread featureExtractorThreadRight(imageRight, *featureDetector_, *descriptorExtractor_);
+  FeatureExtractorThread featureExtractorThreadLeft(imageLeft, featureDetector_, descriptorExtractor_);
+  FeatureExtractorThread featureExtractorThreadRight(imageRight, featureDetector_, descriptorExtractor_);
 
   featureExtractorThreadLeft.WaitUntilFinished();
   const std::vector<cv::KeyPoint>& keyPointsLeft = featureExtractorThreadLeft.GetKeyPoints();
@@ -466,6 +468,21 @@ void sptam::sptam_node::onImages(
       odom_to_map_ = cam_to_map * base_to_cam;
     }
   }
+
+  //ds get camera pose
+  const cv::Matx34d pose = cameraPose_.GetTransformation();
+
+  //ds open file stream (overwriting)
+  std::ofstream outfile_trajectory("/home/dom/datasets/trajectory.txt", std::ifstream::app);
+
+  //ds dump transform according to KITTI format
+  for (uint8_t u = 0; u < 3; ++u) {
+    for (uint8_t v = 0; v < 4; ++v) {
+      outfile_trajectory << pose(u,v) << " ";
+    }
+  }
+  outfile_trajectory << "\n";
+  outfile_trajectory.close();
 
   // Publish Map To be drawn by rviz visualizer
   publishMap();

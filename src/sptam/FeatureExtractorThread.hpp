@@ -41,8 +41,8 @@ class FeatureExtractorThread
      */
     FeatureExtractorThread(
       const cv::Mat& image,
-      const cv::FeatureDetector& featureDetector,
-      const cv::DescriptorExtractor& descriptorExtractor
+      cv::Ptr<cv::FeatureDetector> featureDetector,
+      cv::Ptr<cv::DescriptorExtractor> descriptorExtractor
     );
 
     /**
@@ -71,8 +71,8 @@ class FeatureExtractorThread
   private:
 
     cv::Mat image_;
-    const cv::FeatureDetector& featureDetector_;
-    const cv::DescriptorExtractor& descriptorExtractor_;
+    cv::Ptr<cv::FeatureDetector> featureDetector_;
+    cv::Ptr<cv::DescriptorExtractor> descriptorExtractor_;
 
     std::thread featureExtractorThread_;
 

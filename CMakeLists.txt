@@ -57,6 +57,14 @@ find_package(G2O REQUIRED)
 # select required components
 SET(G2O_LIBRARIES ${G2O_CORE_LIBRARY} ${G2O_STUFF_LIBRARY} ${G2O_SOLVER_CSPARSE} ${G2O_SOLVER_CSPARSE_EXTENSION} ${G2O_TYPES_SBA})
 
+#ds specify additional locations of header files
+include_directories(
+  ${G2O_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  src
+)
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -90,6 +98,18 @@ set( SPTAM_LIBRARIES
   ${YamlCpp_LIBRARIES}
   cxsparse
   sptam
+)
+
+#ds set up catkin package (exported components)
+catkin_package(
+  INCLUDE_DIRS
+  ${G2O_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  src
+
+  LIBRARIES
+  SPTAM_LIBRARIES
 )
 
 # Build the sptam node
