@@ -469,16 +469,22 @@ void sptam::sptam_node::onImages(
     }
   }
 
-  //ds get camera pose
-  const cv::Matx34d pose = cameraPose_.GetTransformation();
+  //ds construct eigen camera pose
+  const cv::Matx33d orientation = cameraPose_.GetOrientationMatrix();
+  const cv::Vec3d position      = cameraPose_.GetPosition();
+  Eigen::Isometry3d camera_to_world(Eigen::Isometry3d::Identity());
+  camera_to_world.linear() << orientation.val[0], orientation.val[1], orientation.val[2],
+                              orientation.val[3], orientation.val[4], orientation.val[5],
+                              orientation.val[6], orientation.val[7], orientation.val[8];
+  camera_to_world.translation() << position.val[0], position.val[1], position.val[2];
 
   //ds open file stream (overwriting)
-  std::ofstream outfile_trajectory("/home/dom/datasets/trajectory.txt", std::ifstream::app);
+  std::ofstream outfile_trajectory("/home/dom/datasets/kitti/trajectory.txt", std::ifstream::app);
 
   //ds dump transform according to KITTI format
   for (uint8_t u = 0; u < 3; ++u) {
     for (uint8_t v = 0; v < 4; ++v) {
-      outfile_trajectory << pose(u,v) << " ";
+      outfile_trajectory << camera_to_world(u,v) << " ";
     }
   }
   outfile_trajectory << "\n";
