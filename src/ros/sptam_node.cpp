@@ -26,6 +26,7 @@
  * University of Buenos Aires
  */
 
+#include <iomanip>
 #include "sptam_node.hpp"
 #include "../sptam/sptam.hpp"
 #include "../sptam/FeatureExtractorThread.hpp"
@@ -73,7 +74,7 @@ inline void TFPose2CameraPose(const tf::Pose& pose, CameraPose& cameraPose)
 // Set Opencv Algorithm parameters from ROS parameter server
 void setParameters( ros::NodeHandle& nodeHandle, cv::Ptr<cv::Algorithm>&& algorithm, const std::string& base_name )
 {
-//ds DISABLED
+//ds DISABLED adjust default parameters
 //  std::vector<cv::String> parameters;
 //  algorithm->getParams( parameters );
 //
@@ -196,7 +197,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   // Mapper Parameters
   // nhp.param is not overloaded for unsigned int
   int matchingCellSizeParam, framesBetweenKeyFramesParam, matchingNeighborhoodParam;
-  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 30);
+  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 15);
   mapper_params_.matchingCellSize = matchingCellSizeParam;
   nhp.param<double>("MatchingDistance", mapper_params_.matchingDistanceThreshold, 25.0);
   nhp.param<int>("MatchingNeighborhood", matchingNeighborhoodParam, 1);
@@ -208,7 +209,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
   // Camera Calibration Parameters
   nhp.param<double>("FrustumNearPlaneDist", cameraParametersLeft_.frustumNearPlaneDist, 0.1);
-  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 1000.0);
+  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 100.0);
   cameraParametersRight_.frustumNearPlaneDist = cameraParametersLeft_.frustumNearPlaneDist;
   cameraParametersRight_.frustumFarPlaneDist = cameraParametersLeft_.frustumFarPlaneDist;
 
@@ -216,6 +217,29 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   rowMatcher_ = new RowMatcher( mapper_params_.matchingDistanceThreshold, mapper_params_.descriptorMatcher, mapper_params_.epipolarDistanceThreshold );
 
   // Subscribe to images messages
+#ifdef USE_EUROC_CALIBRATION
+  sub_l_image_.subscribe(nhp, "/stereo/left/image_rect", 1);
+  sub_r_image_.subscribe(nhp, "/stereo/right/image_rect", 1);
+
+  if ( use_approx_sync )
+  {
+    approximate_sync_.reset( new ApproximateSync( ApproximatePolicy(10),
+                                                  sub_l_image_,
+                                                  sub_r_image_ ) );
+
+    approximate_sync_->registerCallback( boost::bind( &sptam::sptam_node::onImages,
+                                                      this, _1, _2 ) );
+  }
+  else
+  {
+    exact_sync_.reset( new ExactSync( ExactPolicy(1),
+                                      sub_l_image_,
+                                      sub_r_image_ ) );
+
+    exact_sync_->registerCallback( boost::bind( &sptam::sptam_node::onImages,
+                                                this, _1, _2 ) );
+  }
+#else
   sub_l_image_.subscribe(nhp, "/stereo/left/image_rect", 1);
   sub_l_info_ .subscribe(nhp, "/stereo/left/camera_info", 1);
   sub_r_image_.subscribe(nhp, "/stereo/right/image_rect", 1);
@@ -239,6 +263,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     exact_sync_->registerCallback( boost::bind( &sptam::sptam_node::onImages,
                                                 this, _1, _2, _3, _4 ) );
   }
+#endif
 
   mapPub_ = nhp.advertise<sensor_msgs::PointCloud2>("point_cloud", 100);
   posePub_ = nhp.advertise<geometry_msgs::PoseStamped>("robot/pose", 100);
@@ -259,6 +284,8 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
 sptam::sptam_node::~sptam_node()
 {
+  std::cerr << "sptam_node::~sptam_node|average processing time per frame (s): " << _processing_time_seconds/_number_of_frames_processed << std::endl;
+
   ROS_INFO_STREAM("starting sptam node cleanup...");
 
   // transform_thread_ is null if odometry is disabled
@@ -345,11 +372,18 @@ void sptam::sptam_node::fixOdomFrame(const CameraPose& cameraPose, const tf::Sta
   odom_to_map_ = odom_to_map;
 }
 
+#ifdef USE_EUROC_CALIBRATION
+void sptam::sptam_node::onImages(const sensor_msgs::ImageConstPtr& l_image_msg, const sensor_msgs::ImageConstPtr& r_image_msg)
+#else
 void sptam::sptam_node::onImages(
   const sensor_msgs::ImageConstPtr& l_image_msg, const sensor_msgs::CameraInfoConstPtr& left_info,
   const sensor_msgs::ImageConstPtr& r_image_msg, const sensor_msgs::CameraInfoConstPtr& right_info
 )
+#endif
 {
+  //ds processing start
+  std::chrono::time_point<std::chrono::system_clock> time_begin = std::chrono::system_clock::now();
+
   ROS_INFO_STREAM("dt: " << (l_image_msg->header.stamp - r_image_msg->header.stamp).toSec());
 
   // Save current Time
@@ -377,7 +411,11 @@ void sptam::sptam_node::onImages(
   if ( sptam_ == nullptr )
   {
     ROS_INFO_STREAM("init calib");
+#ifdef USE_EUROC_CALIBRATION
+    loadCameraCalibration(0, 0);
+#else
     loadCameraCalibration(left_info, right_info);
+#endif
   }
 
   // convert image to OpenCv cv::Mat format
@@ -387,6 +425,12 @@ void sptam::sptam_node::onImages(
   // save images
   cv::Mat imageLeft = bridgeLeft_ptr->image;
   cv::Mat imageRight = bridgeRight_ptr->image;
+
+  //ds rectify image (euroc)
+#ifdef USE_EUROC_CALIBRATION
+  cv::remap(imageLeft, imageLeft, _undistort_rectify_maps_left[0], _undistort_rectify_maps_left[1], cv::INTER_LINEAR);
+  cv::remap(imageRight, imageRight, _undistort_rectify_maps_right[0], _undistort_rectify_maps_right[1], cv::INTER_LINEAR);
+#endif
 
   #ifdef SHOW_PROFILING
       double start, end;
@@ -469,6 +513,10 @@ void sptam::sptam_node::onImages(
     }
   }
 
+  //ds processing stop
+  _processing_time_seconds += static_cast<std::chrono::duration<double>>(std::chrono::system_clock::now()-time_begin).count();
+  ++_number_of_frames_processed;
+
   //ds construct eigen camera pose
   const cv::Matx33d orientation = cameraPose_.GetOrientationMatrix();
   const cv::Vec3d position      = cameraPose_.GetPosition();
@@ -478,17 +526,38 @@ void sptam::sptam_node::onImages(
                               orientation.val[6], orientation.val[7], orientation.val[8];
   camera_to_world.translation() << position.val[0], position.val[1], position.val[2];
 
-  //ds open file stream (overwriting)
-  std::ofstream outfile_trajectory("/home/dom/datasets/kitti/trajectory.txt", std::ifstream::app);
+  //ds file streams
+  std::ofstream outfile_trajectory_kitti;
+  std::ofstream outfile_trajectory_tum;
+
+  //ds open file streams - overwritting the first and afterwards otherwise
+  if (_number_of_frames_processed == 1) {
+    outfile_trajectory_kitti.open("/home/dom/datasets/trajectory_kitti.txt", std::ifstream::out);
+    outfile_trajectory_tum.open("/home/dom/datasets/trajectory_tum.txt", std::ifstream::out);
+  } else {
+    outfile_trajectory_kitti.open("/home/dom/datasets/trajectory_kitti.txt", std::ifstream::app);
+    outfile_trajectory_tum.open("/home/dom/datasets/trajectory_tum.txt", std::ifstream::app);
+  }
+  outfile_trajectory_kitti << std::fixed;
+  outfile_trajectory_tum << std::fixed;
+  outfile_trajectory_kitti << std::setprecision(9);
+  outfile_trajectory_tum << std::setprecision(9);
+
+  //ds save timestamp for tum
+  const double timestamp_seconds = l_image_msg->header.stamp.sec+l_image_msg->header.stamp.nsec/1e9;
+  outfile_trajectory_tum << timestamp_seconds << " ";
 
   //ds dump transform according to KITTI format
   for (uint8_t u = 0; u < 3; ++u) {
     for (uint8_t v = 0; v < 4; ++v) {
-      outfile_trajectory << camera_to_world(u,v) << " ";
+      outfile_trajectory_tum << camera_to_world(u,v) << " ";
+      outfile_trajectory_kitti << camera_to_world(u,v) << " ";
     }
   }
-  outfile_trajectory << "\n";
-  outfile_trajectory.close();
+  outfile_trajectory_kitti << "\n";
+  outfile_trajectory_tum << "\n";
+  outfile_trajectory_kitti.close();
+  outfile_trajectory_tum.close();
 
   // Publish Map To be drawn by rviz visualizer
   publishMap();
@@ -500,6 +569,113 @@ void sptam::sptam_node::onImages(
 void sptam::sptam_node::loadCameraCalibration( const sensor_msgs::CameraInfoConstPtr& left_info,
                                              const sensor_msgs::CameraInfoConstPtr& right_info )
 {
+
+  //ds parameter pool
+#ifdef USE_EUROC_CALIBRATION
+  cv::Size image_size(752, 480);
+  cv::Mat camera_calibration_matrix_left(cv::Mat::eye(3, 3, CV_64F));
+  cv::Mat camera_calibration_matrix_right(cv::Mat::eye(3, 3, CV_64F));
+  cv::Mat distortion_coefficients_left(cv::Mat::zeros(4, 1, CV_64F));
+  cv::Mat distortion_coefficients_right(cv::Mat::zeros(4, 1, CV_64F));
+  cv::Mat projection_matrix_left(cv::Mat::eye(3, 4, CV_64F));
+  cv::Mat projection_matrix_right(cv::Mat::eye(3, 4, CV_64F));
+  cv::Mat rectification_matrix_left(cv::Mat::eye(3, 3, CV_64F));
+  cv::Mat rectification_matrix_right(cv::Mat::eye(3, 3, CV_64F));
+
+  camera_calibration_matrix_left.at<double>(0,0)  = 458.654;
+  camera_calibration_matrix_left.at<double>(0,2)  = 367.215;
+  camera_calibration_matrix_left.at<double>(1,1)  = 457.296;
+  camera_calibration_matrix_left.at<double>(1,2)  = 248.375;
+  camera_calibration_matrix_right.at<double>(0,0) = 457.587;
+  camera_calibration_matrix_right.at<double>(0,2) = 379.999;
+  camera_calibration_matrix_right.at<double>(1,1) = 456.134;
+  camera_calibration_matrix_right.at<double>(1,2) = 255.238;
+
+  distortion_coefficients_left.at<double>(0)  = -0.28340811;
+  distortion_coefficients_left.at<double>(1)  = 0.07395907;
+  distortion_coefficients_left.at<double>(2)  = 0.00019359;
+  distortion_coefficients_left.at<double>(3)  = 1.76187114e-05;
+  distortion_coefficients_right.at<double>(0) = -0.28368365;
+  distortion_coefficients_right.at<double>(1) = 0.07451284;
+  distortion_coefficients_right.at<double>(2) = -0.00010473;
+  distortion_coefficients_right.at<double>(3) = -3.55590700e-05;
+
+  rectification_matrix_left.at<double>(0,0) = 0.999966347530033;
+  rectification_matrix_left.at<double>(0,1) = -0.001422739138722922;
+  rectification_matrix_left.at<double>(0,2) = 0.008079580483432283;
+  rectification_matrix_left.at<double>(1,0) = 0.001365741834644127;
+  rectification_matrix_left.at<double>(1,1) = 0.9999741760894847;
+  rectification_matrix_left.at<double>(1,2) = 0.007055629199258132;
+  rectification_matrix_left.at<double>(2,0) = -0.008089410156878961;
+  rectification_matrix_left.at<double>(2,1) = -0.007044357138835809;
+  rectification_matrix_left.at<double>(2,2) = 0.9999424675829176;
+
+  rectification_matrix_right.at<double>(0,0) = 0.9999633526194376;
+  rectification_matrix_right.at<double>(0,1) = -0.003625811871560086;
+  rectification_matrix_right.at<double>(0,2) = 0.007755443660172947;
+  rectification_matrix_right.at<double>(1,0) = 0.003680398547259526;
+  rectification_matrix_right.at<double>(1,1) = 0.9999684752771629;
+  rectification_matrix_right.at<double>(1,2) = -0.007035845251224894;
+  rectification_matrix_right.at<double>(2,0) = -0.007729688520722713;
+  rectification_matrix_right.at<double>(2,1) = 0.007064130529506649;
+  rectification_matrix_right.at<double>(2,2) = 0.999945173484644;
+
+  projection_matrix_left.at<double>(0,0) = 435.2046959714599;
+  projection_matrix_left.at<double>(0,2) = 367.4517211914062;
+  projection_matrix_left.at<double>(1,1) = 435.2046959714599;
+  projection_matrix_left.at<double>(1,2) = 252.2008514404297;
+
+  projection_matrix_right.at<double>(0,0) = 435.2046959714599;
+  projection_matrix_right.at<double>(0,2) = 367.4517211914062;
+  projection_matrix_right.at<double>(0,3) = -47.90639384423901;
+  projection_matrix_right.at<double>(1,1) = 435.2046959714599;
+  projection_matrix_right.at<double>(1,2) = 252.2008514404297;
+
+  //ds compute undistorted and rectified mappings
+  cv::initUndistortRectifyMap(camera_calibration_matrix_left,
+                              distortion_coefficients_left,
+                              rectification_matrix_left,
+                              projection_matrix_left,
+                              image_size,
+                              CV_16SC2,
+                              _undistort_rectify_maps_left[0],
+                              _undistort_rectify_maps_left[1]);
+  cv::initUndistortRectifyMap(camera_calibration_matrix_right,
+                              distortion_coefficients_right,
+                              rectification_matrix_right,
+                              projection_matrix_right,
+                              image_size,
+                              CV_16SC2,
+                              _undistort_rectify_maps_right[0],
+                              _undistort_rectify_maps_right[1]);
+
+  //ds compute baseline
+  const double baseline = -projection_matrix_right.at<double>(0,3) / projection_matrix_right.at<double>(0,0);
+
+  // Ponemos que el frame id de las camara info sea el mismo ???
+  ROS_INFO_STREAM("tx: " << projection_matrix_right.at<double>(0,3)
+              << " fx: " << projection_matrix_right.at<double>(0,0)
+              << " baseline: " << baseline);
+
+  // Get rectify intrinsic Matrix (is the same for both cameras because they are rectify)
+  cv::Matx33d intrinsic = projection_matrix_left( cv::Rect(0,0,3,3) );
+
+  // Save rectify intrinsic Matrix
+  cameraParametersLeft_.intrinsic = intrinsic;
+  cameraParametersRight_.intrinsic = intrinsic;
+
+  // Save the baseline
+  stereo_baseline_ = baseline;
+
+  // Compute Fild Of View (Frustum)
+
+  cameraParametersLeft_.horizontalFOV = computeFOV( intrinsic(0, 0), image_size.width );
+  cameraParametersLeft_.verticalFOV = computeFOV( intrinsic(1, 1), image_size.height );
+
+  cameraParametersRight_.horizontalFOV = computeFOV( intrinsic(0, 0), image_size.width );
+  cameraParametersRight_.verticalFOV = computeFOV( intrinsic(1, 1), image_size.height );
+#else
+
   // Check if a valid calibration exists
   if (left_info->K[0] == 0.0) {
     ROS_ERROR("La camara no esta calibrada");
@@ -539,6 +715,7 @@ void sptam::sptam_node::loadCameraCalibration( const sensor_msgs::CameraInfoCons
 
   cameraParametersRight_.horizontalFOV = computeFOV( intrinsic(0, 0), right_info_copy->width );
   cameraParametersRight_.verticalFOV = computeFOV( intrinsic(1, 1), right_info_copy->height );
+#endif
 
   ROS_INFO_STREAM("baseline: " << stereo_baseline_);
 

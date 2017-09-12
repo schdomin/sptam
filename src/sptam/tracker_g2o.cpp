@@ -63,6 +63,11 @@ tracker_g2o::tracker_g2o(
 
   optimizer_.setVerbose( false );
 
+  //ds current g2o
+//  auto linearSolver = g2o::make_unique<g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>>();
+//  auto solver_ptr = g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
+//  g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+
   g2o::BlockSolver_6_3::LinearSolverType* linearSolver
     = new g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>();
 

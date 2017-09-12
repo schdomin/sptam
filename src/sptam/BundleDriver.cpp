@@ -71,6 +71,11 @@ BundleDriver::BundleDriver(
 
   optimizer_.setForceStopFlag( &bundleAbortRequested_ );
 
+  //ds current g2o
+//  auto linearSolver = g2o::make_unique<g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>>();
+//  auto solver_ptr = g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
+//  g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+
   // Higher converge velocity
   g2o::BlockSolver_6_3::LinearSolverType* linearSolver
     = new g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>();

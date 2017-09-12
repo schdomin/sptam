@@ -41,6 +41,8 @@
 #include <tf/transform_broadcaster.h>
 #include <image_transport/image_transport.h>
 
+#define USE_EUROC_CALIBRATION
+
 namespace sptam
 {
 
@@ -64,10 +66,15 @@ class sptam_node
      *   Syncronized image callback. Tracks the features on the new images
      *   to compute the current robot position.
      */
+#ifdef USE_EUROC_CALIBRATION
+    void onImages( const sensor_msgs::ImageConstPtr& l_image_msg,
+                   const sensor_msgs::ImageConstPtr& r_image_msg);
+#else
     void onImages( const sensor_msgs::ImageConstPtr& l_image_msg,
                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                    const sensor_msgs::ImageConstPtr& r_image_msg,
                    const sensor_msgs::CameraInfoConstPtr& r_info_msg );
+#endif
 
     /**
      * @brief
@@ -120,6 +127,12 @@ class sptam_node
     CameraPose cameraPose_;
     std::unique_ptr<MotionModel> motionModel_;
 
+    //ds undistortion/rectification (euroc)
+#ifdef USE_EUROC_CALIBRATION
+    cv::Mat _undistort_rectify_maps_left[2];
+    cv::Mat _undistort_rectify_maps_right[2];
+#endif
+
   // node parameters
 
     bool use_odometry_;
@@ -155,14 +168,30 @@ class sptam_node
     // will be used, so we have to define both, no common interface :/
 
     // Exact time image topic synchronizer
+#ifdef USE_EUROC_CALIBRATION
+    typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ExactPolicy;
+#else
     typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::Image, sensor_msgs::CameraInfo> ExactPolicy;
+#endif
     typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
     boost::shared_ptr<ExactSync> exact_sync_;
 
     // Approximate time image topic synchronizer
+#ifdef USE_EUROC_CALIBRATION
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> ApproximatePolicy;
+#else
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::Image, sensor_msgs::CameraInfo> ApproximatePolicy;
+#endif
     typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
     boost::shared_ptr<ApproximateSync> approximate_sync_;
+
+  private:
+
+    //ds accumulated processing time
+    double _processing_time_seconds = 0;
+
+    //ds total number of frames processed
+    uint64_t _number_of_frames_processed = 0;
 
 }; // class sptam
 
