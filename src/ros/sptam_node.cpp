@@ -197,7 +197,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   // Mapper Parameters
   // nhp.param is not overloaded for unsigned int
   int matchingCellSizeParam, framesBetweenKeyFramesParam, matchingNeighborhoodParam;
-  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 15);
+  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 30);
   mapper_params_.matchingCellSize = matchingCellSizeParam;
   nhp.param<double>("MatchingDistance", mapper_params_.matchingDistanceThreshold, 25.0);
   nhp.param<int>("MatchingNeighborhood", matchingNeighborhoodParam, 1);
@@ -209,7 +209,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
   // Camera Calibration Parameters
   nhp.param<double>("FrustumNearPlaneDist", cameraParametersLeft_.frustumNearPlaneDist, 0.1);
-  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 100.0);
+  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 10000.0);
   cameraParametersRight_.frustumNearPlaneDist = cameraParametersLeft_.frustumNearPlaneDist;
   cameraParametersRight_.frustumFarPlaneDist = cameraParametersLeft_.frustumFarPlaneDist;
 
@@ -532,11 +532,11 @@ void sptam::sptam_node::onImages(
 
   //ds open file streams - overwritting the first and afterwards otherwise
   if (_number_of_frames_processed == 1) {
-    outfile_trajectory_kitti.open("/home/dom/datasets/trajectory_kitti.txt", std::ifstream::out);
-    outfile_trajectory_tum.open("/home/dom/datasets/trajectory_tum.txt", std::ifstream::out);
+    outfile_trajectory_kitti.open("/home/dom/datasets/sptam_trajectory_kitti.txt", std::ifstream::out);
+    outfile_trajectory_tum.open("/home/dom/datasets/sptam_trajectory_tum.txt", std::ifstream::out);
   } else {
-    outfile_trajectory_kitti.open("/home/dom/datasets/trajectory_kitti.txt", std::ifstream::app);
-    outfile_trajectory_tum.open("/home/dom/datasets/trajectory_tum.txt", std::ifstream::app);
+    outfile_trajectory_kitti.open("/home/dom/datasets/sptam_trajectory_kitti.txt", std::ifstream::app);
+    outfile_trajectory_tum.open("/home/dom/datasets/sptam_trajectory_tum.txt", std::ifstream::app);
   }
   outfile_trajectory_kitti << std::fixed;
   outfile_trajectory_tum << std::fixed;
