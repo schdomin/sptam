@@ -41,7 +41,7 @@
 #include <tf/transform_broadcaster.h>
 #include <image_transport/image_transport.h>
 
-//#define USE_EUROC_CALIBRATION
+#define USE_EUROC_CALIBRATION
 
 namespace sptam
 {

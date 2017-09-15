@@ -53,8 +53,8 @@ find_package(SuiteSparse REQUIRED)
 include_directories(${CHOLMOD_INCLUDE_DIR})
 
 #ds provide a static old g2o version (segmentation faults with current g2o's ownership model)
-set(G2O_ROOT "/home/dom/source/libraries/g2o_old")
-set(G2O_INCLUDE_DIR "/home/dom/source/libraries/g2o_old")
+set(G2O_ROOT "/home/srrg/source/libraries/g2o_old")
+set(G2O_INCLUDE_DIR "/home/srrg/source/libraries/g2o_old")
 
 # Find G2O Library
 find_package(G2O REQUIRED)
@@ -62,7 +62,7 @@ find_package(G2O REQUIRED)
 SET(G2O_LIBRARIES ${G2O_CORE_LIBRARY} ${G2O_STUFF_LIBRARY} ${G2O_SOLVER_CSPARSE} ${G2O_SOLVER_CSPARSE_EXTENSION} ${G2O_TYPES_SBA})
 
 #ds check
-message("using G2O_CORE_LIBRARY: ${G2O_CORE_LIBRARY}")
+message("using G2O_LIBRARIES: ${G2O_LIBRARIES}")
 message("using G2O_INCLUDE_DIR: ${G2O_INCLUDE_DIR}")
 
 #ds specify additional locations of header files
