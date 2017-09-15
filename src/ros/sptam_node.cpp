@@ -158,7 +158,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     nhp.param<std::string>("FeatureDetector/Name", detectorName, "GFTT");
 
     std::cout << "detector: " << detectorName << std::endl;
-    featureDetector_ = cv::GFTTDetector::create();
+    featureDetector_ = cv::GFTTDetector::create(2000, 0.01, 15.0);
 
     if ( not featureDetector_ )
       ROS_ERROR_STREAM("could not load feature detector with name " << detectorName);
@@ -197,7 +197,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   // Mapper Parameters
   // nhp.param is not overloaded for unsigned int
   int matchingCellSizeParam, framesBetweenKeyFramesParam, matchingNeighborhoodParam;
-  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 30);
+  nhp.param<int>("MatchingCellSize", matchingCellSizeParam, 15);
   mapper_params_.matchingCellSize = matchingCellSizeParam;
   nhp.param<double>("MatchingDistance", mapper_params_.matchingDistanceThreshold, 25.0);
   nhp.param<int>("MatchingNeighborhood", matchingNeighborhoodParam, 1);
@@ -209,7 +209,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
   // Camera Calibration Parameters
   nhp.param<double>("FrustumNearPlaneDist", cameraParametersLeft_.frustumNearPlaneDist, 0.1);
-  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 10000.0);
+  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 100.0);
   cameraParametersRight_.frustumNearPlaneDist = cameraParametersLeft_.frustumNearPlaneDist;
   cameraParametersRight_.frustumFarPlaneDist = cameraParametersLeft_.frustumFarPlaneDist;
 
