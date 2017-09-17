@@ -32,7 +32,8 @@
 #include "../sptam/FeatureExtractorThread.hpp"
 #include "../sptam/utils/projective_math.hpp"
 
-#include <opencv2/xfeatures2d.hpp>
+#include <opencv2/core/version.hpp>
+#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -40,6 +41,14 @@
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <image_geometry/pinhole_camera_model.h>
+
+#if CV_MAJOR_VERSION == 2
+  //ds no specifics
+#elif CV_MAJOR_VERSION == 3
+  #include <opencv2/xfeatures2d.hpp>
+#else
+  #error OpenCV version not supported
+#endif
 
 #ifdef SHOW_PROFILING
 
@@ -74,65 +83,70 @@ inline void TFPose2CameraPose(const tf::Pose& pose, CameraPose& cameraPose)
 // Set Opencv Algorithm parameters from ROS parameter server
 void setParameters( ros::NodeHandle& nodeHandle, cv::Ptr<cv::Algorithm>&& algorithm, const std::string& base_name )
 {
-//ds DISABLED adjust default parameters
-//  std::vector<cv::String> parameters;
-//  algorithm->getParams( parameters );
-//
-//  for ( const auto& param : parameters )
-//  {
-//    if ( nodeHandle.hasParam(base_name + "/" + param) )
-//    {
-//      int param_type = algorithm->paramType( param );
-//
-//      switch ( param_type )
-//      {
-//        case cv::Param::INT:
-//        {
-//          int val;
-//          nodeHandle.getParam(base_name + "/" + param, val);
-//          algorithm->set(param, val);
-//          std::cout << "  " << param << ": " << val << std::endl;
-//          break;
-//        }
-//
-//        case cv::Param::BOOLEAN:
-//        {
-//          bool val;
-//          nodeHandle.getParam(base_name + "/" + param, val);
-//          algorithm->set(param, val);
-//          std::cout << "  " << param << ": " << val << std::endl;
-//          break;
-//        }
-//
-//        case cv::Param::REAL:
-//        {
-//          double val;
-//          nodeHandle.getParam(base_name + "/" + param, val);
-//          algorithm->set(param, val);
-//          std::cout << "  " << param << ": " << val << std::endl;
-//          break;
-//        }
-//
-//        case cv::Param::STRING:
-//        {
-//          std::string val;
-//          nodeHandle.getParam(base_name + "/" + param, val);
-//          algorithm->set(param, val);
-//          std::cout << "  " << param << ": " << val << std::endl;
-//          break;
-//        }
-//
-//        default:
-//          ROS_ERROR_STREAM("unknown/unsupported parameter type for ");
-//          break;
-//      }
-//    }
-//  }
+#if CV_MAJOR_VERSION == 2
+  std::vector<cv::String> parameters;
+  algorithm->getParams( parameters );
+
+  for ( const auto& param : parameters )
+  {
+    if ( nodeHandle.hasParam(base_name + "/" + param) )
+    {
+      int param_type = algorithm->paramType( param );
+
+      switch ( param_type )
+      {
+        case cv::Param::INT:
+        {
+          int val;
+          nodeHandle.getParam(base_name + "/" + param, val);
+          algorithm->set(param, val);
+          std::cout << "  " << param << ": " << val << std::endl;
+          break;
+        }
+
+        case cv::Param::BOOLEAN:
+        {
+          bool val;
+          nodeHandle.getParam(base_name + "/" + param, val);
+          algorithm->set(param, val);
+          std::cout << "  " << param << ": " << val << std::endl;
+          break;
+        }
+
+        case cv::Param::REAL:
+        {
+          double val;
+          nodeHandle.getParam(base_name + "/" + param, val);
+          algorithm->set(param, val);
+          std::cout << "  " << param << ": " << val << std::endl;
+          break;
+        }
+
+        case cv::Param::STRING:
+        {
+          std::string val;
+          nodeHandle.getParam(base_name + "/" + param, val);
+          algorithm->set(param, val);
+          std::cout << "  " << param << ": " << val << std::endl;
+          break;
+        }
+
+        default:
+          ROS_ERROR_STREAM("unknown/unsupported parameter type for ");
+          break;
+      }
+    }
+  }
+#else
+  //ds TODO port parameter parsing and setting to opencv3
+#endif
 }
 
 // ================================================================== //
 
-sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
+namespace sptam {
+
+sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   :
   sptam_(nullptr),
   motionModel_(new MotionModel(cv::Point3d(0,0,0), cv::Vec4d(1,0,0,0))),
@@ -158,7 +172,11 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     nhp.param<std::string>("FeatureDetector/Name", detectorName, "GFTT");
 
     std::cout << "detector: " << detectorName << std::endl;
-    featureDetector_ = cv::GFTTDetector::create(1000, 0.05, 7.0);
+#if CV_MAJOR_VERSION == 2
+    featureDetector_ = cv::FeatureDetector::create(detectorName);
+#else
+    featureDetector_ = cv::GFTTDetector::create();
+#endif
 
     if ( not featureDetector_ )
       ROS_ERROR_STREAM("could not load feature detector with name " << detectorName);
@@ -172,7 +190,11 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     nhp.param<std::string>("DescriptorExtractor/Name", extractorName, "BRIEF");
 
     std::cout << "extractor: " << extractorName << std::endl;
+#if CV_MAJOR_VERSION == 2
+    descriptorExtractor_ = cv::DescriptorExtractor::create(extractorName);
+#else
     descriptorExtractor_ = cv::xfeatures2d::BriefDescriptorExtractor::create();
+#endif
 
     if ( not descriptorExtractor_ )
       ROS_ERROR_STREAM("could not load descriptor extractor with name " << extractorName);
@@ -209,7 +231,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
   // Camera Calibration Parameters
   nhp.param<double>("FrustumNearPlaneDist", cameraParametersLeft_.frustumNearPlaneDist, 0.1);
-  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 1000.0);
+  nhp.param<double>("FrustumFarPlaneDist", cameraParametersLeft_.frustumFarPlaneDist, 100.0);
   cameraParametersRight_.frustumNearPlaneDist = cameraParametersLeft_.frustumNearPlaneDist;
   cameraParametersRight_.frustumFarPlaneDist = cameraParametersLeft_.frustumFarPlaneDist;
 
@@ -282,7 +304,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   ROS_INFO_STREAM("sptam node initialized");
 }
 
-sptam::sptam_node::~sptam_node()
+sptam_node::~sptam_node()
 {
   std::cerr << "sptam_node::~sptam_node|average processing time per frame (s): " << _processing_time_seconds/_number_of_frames_processed << std::endl;
 
@@ -325,7 +347,7 @@ sptam::sptam_node::~sptam_node()
   ros::Duration( 1.0 ).sleep();
 }
 
-bool sptam::sptam_node::getCameraInOdom(tf::StampedTransform& camera_to_odom, const ros::Time& t)
+bool sptam_node::getCameraInOdom(tf::StampedTransform& camera_to_odom, const ros::Time& t)
 {
   // lookupTransform(target_frame, source_frame ...)
   if ( transform_listener_.waitForTransform(odom_frame_, camera_frame_, t, ros::Duration(0.1)) ) {
@@ -339,7 +361,7 @@ bool sptam::sptam_node::getCameraInOdom(tf::StampedTransform& camera_to_odom, co
   return true;
 }
 
-bool sptam::sptam_node::getBaseLinkPose(const CameraPose& cameraPose, const ros::Time& t, tf::Pose& base_to_map)
+bool sptam_node::getBaseLinkPose(const CameraPose& cameraPose, const ros::Time& t, tf::Pose& base_to_map)
 {
   tf::StampedTransform base_to_camera;
 
@@ -360,7 +382,7 @@ bool sptam::sptam_node::getBaseLinkPose(const CameraPose& cameraPose, const ros:
   return true;
 }
 
-void sptam::sptam_node::fixOdomFrame(const CameraPose& cameraPose, const tf::StampedTransform& camera_to_odom, const ros::Time& t)
+void sptam_node::fixOdomFrame(const CameraPose& cameraPose, const tf::StampedTransform& camera_to_odom, const ros::Time& t)
 {
   tf::Pose camera_to_map;
   CameraPose2TFPose( cameraPose, camera_to_map );
@@ -373,7 +395,7 @@ void sptam::sptam_node::fixOdomFrame(const CameraPose& cameraPose, const tf::Sta
 }
 
 #ifdef USE_EUROC_CALIBRATION
-void sptam::sptam_node::onImages(const sensor_msgs::ImageConstPtr& l_image_msg, const sensor_msgs::ImageConstPtr& r_image_msg)
+void sptam_node::onImages(const sensor_msgs::ImageConstPtr& l_image_msg, const sensor_msgs::ImageConstPtr& r_image_msg)
 #else
 void sptam::sptam_node::onImages(
   const sensor_msgs::ImageConstPtr& l_image_msg, const sensor_msgs::CameraInfoConstPtr& left_info,
@@ -517,6 +539,18 @@ void sptam::sptam_node::onImages(
   _processing_time_seconds += static_cast<std::chrono::duration<double>>(std::chrono::system_clock::now()-time_begin).count();
   ++_number_of_frames_processed;
 
+  //ds save current pose
+  _writePoseToFile(l_image_msg);
+
+  // Publish Map To be drawn by rviz visualizer
+  publishMap();
+
+  // Publish the camera Pose
+  publishPose( l_image_msg->header.seq, currentTime, cameraPose_ );
+}
+
+void sptam_node::_writePoseToFile(const sensor_msgs::ImageConstPtr& image_left_) const {
+
   //ds construct eigen camera pose
   const cv::Matx33d orientation = cameraPose_.GetOrientationMatrix();
   const cv::Vec3d position      = cameraPose_.GetPosition();
@@ -532,11 +566,11 @@ void sptam::sptam_node::onImages(
 
   //ds open file streams - overwritting the first and afterwards otherwise
   if (_number_of_frames_processed == 1) {
-    outfile_trajectory_kitti.open("/home/srrg/datasets/sptam_trajectory_kitti.txt", std::ifstream::out);
-    outfile_trajectory_tum.open("/home/srrg/datasets/sptam_trajectory_tum.txt", std::ifstream::out);
+    outfile_trajectory_kitti.open("sptam_trajectory_kitti.txt", std::ifstream::out);
+    outfile_trajectory_tum.open("sptam_trajectory_tum.txt", std::ifstream::out);
   } else {
-    outfile_trajectory_kitti.open("/home/srrg/datasets/sptam_trajectory_kitti.txt", std::ifstream::app);
-    outfile_trajectory_tum.open("/home/srrg/datasets/sptam_trajectory_tum.txt", std::ifstream::app);
+    outfile_trajectory_kitti.open("sptam_trajectory_kitti.txt", std::ifstream::app);
+    outfile_trajectory_tum.open("sptam_trajectory_tum.txt", std::ifstream::app);
   }
   outfile_trajectory_kitti << std::fixed;
   outfile_trajectory_tum << std::fixed;
@@ -544,7 +578,7 @@ void sptam::sptam_node::onImages(
   outfile_trajectory_tum << std::setprecision(9);
 
   //ds save timestamp for tum
-  const double timestamp_seconds = l_image_msg->header.stamp.sec+l_image_msg->header.stamp.nsec/1e9;
+  const double timestamp_seconds = image_left_->header.stamp.sec+image_left_->header.stamp.nsec/1e9;
   outfile_trajectory_tum << timestamp_seconds << " ";
 
   //ds dump transform according to KITTI format
@@ -558,19 +592,11 @@ void sptam::sptam_node::onImages(
   outfile_trajectory_tum << "\n";
   outfile_trajectory_kitti.close();
   outfile_trajectory_tum.close();
-
-  // Publish Map To be drawn by rviz visualizer
-  publishMap();
-
-  // Publish the camera Pose
-  publishPose( l_image_msg->header.seq, currentTime, cameraPose_ );
 }
 
-void sptam::sptam_node::loadCameraCalibration( const sensor_msgs::CameraInfoConstPtr& left_info,
-                                             const sensor_msgs::CameraInfoConstPtr& right_info )
-{
+void sptam_node::loadCameraCalibration(const sensor_msgs::CameraInfoConstPtr& left_info, const sensor_msgs::CameraInfoConstPtr& right_info) {
 
-  //ds parameter pool
+  //ds brutal - use hardcoded euroc camera calibration
 #ifdef USE_EUROC_CALIBRATION
   cv::Size image_size(752, 480);
   cv::Mat camera_calibration_matrix_left(cv::Mat::eye(3, 3, CV_64F));
@@ -674,9 +700,9 @@ void sptam::sptam_node::loadCameraCalibration( const sensor_msgs::CameraInfoCons
 
   cameraParametersRight_.horizontalFOV = computeFOV( intrinsic(0, 0), image_size.width );
   cameraParametersRight_.verticalFOV = computeFOV( intrinsic(1, 1), image_size.height );
-#else
 
   // Check if a valid calibration exists
+#else
   if (left_info->K[0] == 0.0) {
     ROS_ERROR("La camara no esta calibrada");
     return;
@@ -727,7 +753,7 @@ void sptam::sptam_node::loadCameraCalibration( const sensor_msgs::CameraInfoCons
   );
 }
 
-void sptam::sptam_node::publishMap()
+void sptam_node::publishMap()
 {
   if ( mapPub_.getNumSubscribers() < 1 )
     return;
@@ -756,7 +782,7 @@ void sptam::sptam_node::publishMap()
   mapPub_.publish( msg );
 }
 
-void sptam::sptam_node::publishPose(const uint32_t seq, const ros::Time& time, const CameraPose& currentCameraPose)
+void sptam_node::publishPose(const uint32_t seq, const ros::Time& time, const CameraPose& currentCameraPose)
 {
   tf::Pose base_to_map;
   if ( not getBaseLinkPose( currentCameraPose, time, base_to_map ) )
@@ -796,7 +822,7 @@ void sptam::sptam_node::publishPose(const uint32_t seq, const ros::Time& time, c
   posePub_.publish( msg );
 }
 
-void sptam::sptam_node::publishTransform()
+void sptam_node::publishTransform()
 {
   std::lock_guard<std::mutex> lock( odom_to_map_mutex_ );
 
@@ -806,7 +832,7 @@ void sptam::sptam_node::publishTransform()
   transform_broadcaster_.sendTransform(tf::StampedTransform(odom_to_map_, tf_expiration, map_frame_, odom_frame_));
 }
 
-void sptam::sptam_node::publishTransformLoop()
+void sptam_node::publishTransformLoop()
 {
   if ( transform_publish_freq_ == 0 )
     return;
@@ -819,7 +845,7 @@ void sptam::sptam_node::publishTransformLoop()
   }
 }
 
-void sptam::sptam_node::publishTransform2()
+void sptam_node::publishTransform2()
 {
   std::lock_guard<std::mutex> lock( odom_to_map_mutex_ );
 
@@ -830,7 +856,7 @@ void sptam::sptam_node::publishTransform2()
   transform_broadcaster_.sendTransform(tf::StampedTransform(odom_to_map_, tf_expiration, map_frame_, base_frame_));
 }
 
-void sptam::sptam_node::publishTransformLoop2()
+void sptam_node::publishTransformLoop2()
 {
   if ( transform_publish_freq_ == 0 )
     return;
@@ -841,4 +867,5 @@ void sptam::sptam_node::publishTransformLoop2()
     publishTransform2();
     r.sleep();
   }
+}
 }

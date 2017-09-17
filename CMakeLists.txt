@@ -3,6 +3,12 @@ project( sptam )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
 
+#ds determine build type, default build type Release
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+message("build type: '${CMAKE_BUILD_TYPE}'")
+
 # declare cache entry parameters
 SET(SHOW_TRACKED_FRAMES OFF CACHE BOOL "Enable/Disable OpenCV frame visualization for the tracker.")
 SET(SHOW_PROFILING ON CACHE BOOL "Enable/Disable Profiling of each step.")
@@ -52,18 +58,10 @@ add_definitions(${PCL_DEFINITIONS})
 find_package(SuiteSparse REQUIRED)
 include_directories(${CHOLMOD_INCLUDE_DIR})
 
-#ds provide a static old g2o version (segmentation faults with current g2o's ownership model)
-set(G2O_ROOT "/home/srrg/source/libraries/g2o_old")
-set(G2O_INCLUDE_DIR "/home/srrg/source/libraries/g2o_old")
-
 # Find G2O Library
 find_package(G2O REQUIRED)
 # select required components
 SET(G2O_LIBRARIES ${G2O_CORE_LIBRARY} ${G2O_STUFF_LIBRARY} ${G2O_SOLVER_CSPARSE} ${G2O_SOLVER_CSPARSE_EXTENSION} ${G2O_TYPES_SBA})
-
-#ds check
-message("using G2O_LIBRARIES: ${G2O_LIBRARIES}")
-message("using G2O_INCLUDE_DIR: ${G2O_INCLUDE_DIR}")
 
 #ds specify additional locations of header files
 include_directories(
@@ -72,6 +70,20 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   src
 )
+
+#ds build info
+message("using OpenCV version: '${OpenCV_VERSION}' (${OpenCV_DIR})")
+message("using Eigen version: '3' (${EIGEN3_INCLUDE_DIR})")
+message("using g2o installation: '${G2O_INCLUDE_DIR}'")
+
+#ds set additional flags
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Release" OR "${CMAKE_BUILD_TYPE}" STREQUAL "RELEASE")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --std=gnu++11 -march=native -Wall -Ofast -DNDEBUG -fPIC")
+  message("adding flags for build type '${CMAKE_BUILD_TYPE}': '--std=gnu++11 -march=native -Wall -Ofast -DNDEBUG -fPIC'")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --std=gnu++11 -march=native -Wall -O0 -g -fPIC -fstack-check")
+  message("adding flags for build type  '${CMAKE_BUILD_TYPE}': '--std=gnu++11 -march=native -Wall -O0 -g -fPIC -fstack-check'")
+endif()
 
 ###################################
 ## catkin specific configuration ##

@@ -78,6 +78,12 @@ class sptam_node
 
     /**
      * @brief
+     *   saves current pose estimate to file (in KITTI and TUM format)
+     */
+    void _writePoseToFile(const sensor_msgs::ImageConstPtr& image_left_) const;
+
+    /**
+     * @brief
      *   Get the current camera pose at time t in the map reference frame.
      */
     bool getCameraInOdom(tf::StampedTransform& camera_to_odom, const ros::Time& t);
