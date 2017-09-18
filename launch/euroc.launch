@@ -33,7 +33,7 @@
     <param name="approximate_sync" value="false" />
     <param name="camera_frame" value="/left_camera"/>
 
-        <!-- Remap topics  -->
+    <!-- Remap topics, camera info not available - set the flag USE_EUROC_CALIBRATION in CMake -->
     <remap from="/stereo/left/image_rect"  to="/cam0/image_raw"/>
     <remap from="/stereo/right/image_rect"  to="/cam1/image_raw"/>
 

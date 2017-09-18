@@ -30,6 +30,7 @@
 #include "../sptam/sptam.hpp"
 #include "../sptam/MotionModel.hpp"
 
+#include <opencv2/core/version.hpp>
 #include <opencv2/opencv.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
@@ -41,7 +42,13 @@
 #include <tf/transform_broadcaster.h>
 #include <image_transport/image_transport.h>
 
-#define USE_EUROC_CALIBRATION
+#if CV_MAJOR_VERSION == 2
+  //ds no specifics
+#elif CV_MAJOR_VERSION == 3
+  #include <opencv2/xfeatures2d.hpp>
+#else
+  #error OpenCV version not supported
+#endif
 
 namespace sptam
 {
@@ -54,6 +61,8 @@ class sptam_node
     sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp);
 
     ~sptam_node();
+
+    void setWorkingDirectory(const std::string working_directory_) {_working_directory = working_directory_;}
 
   private:
 
@@ -193,11 +202,14 @@ class sptam_node
 
   private:
 
-    //ds accumulated processing time
+    //! @brief accumulated processing time
     double _processing_time_seconds = 0;
 
-    //ds total number of frames processed
+    //! @brief total number of frames processed
     uint64_t _number_of_frames_processed = 0;
+
+    //! @brief current working directory (for ofstream)
+    std::string _working_directory;
 
 }; // class sptam
 

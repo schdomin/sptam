@@ -1,7 +1,18 @@
 # Development fork for ROS Indigo and Kinetic
 
-S-PTAM is a Stereo SLAM system able to compute the camera trajectory in real-time. It heavily exploits the parallel nature of the SLAM problem, separating the time-constrained pose estimation from less pressing matters such as map building and refinement tasks. On the other hand, the stereo setting allows to reconstruct a metric 3D map for each frame of stereo images, improving the accuracy of the mapping process with respect to monocular SLAM and avoiding the well-known bootstrapping problem. Also, the real scale of the environment is an essential feature for robots which have to interact with their surrounding workspace.
+## Important changes
+We added 2 new CMake flags which have to be set at build time:
 
+    G2O_USE_NEW_OWNERSHIP (default: ON)
+    USE_EUROC_CALIBRATION (default: OFF)
+
+`G2O_USE_NEW_OWNERSHIP` must be set to `OFF` in case an older version of g2o is used (previous to revision: 7828003).
+
+`USE_EUROC_CALIBRATION=ON` is required to enable proper processing of the EuRoC bag versions.
+
+<hr>
+
+S-PTAM is a Stereo SLAM system able to compute the camera trajectory in real-time. It heavily exploits the parallel nature of the SLAM problem, separating the time-constrained pose estimation from less pressing matters such as map building and refinement tasks. On the other hand, the stereo setting allows to reconstruct a metric 3D map for each frame of stereo images, improving the accuracy of the mapping process with respect to monocular SLAM and avoiding the well-known bootstrapping problem. Also, the real scale of the environment is an essential feature for robots which have to interact with their surrounding workspace.
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=kq9DG5PQ2k8
 " target="_blank"><img src="http://img.youtube.com/vi/kq9DG5PQ2k8/0.jpg" 

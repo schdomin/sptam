@@ -43,6 +43,13 @@ int main(int argc, char *argv[])
   // Create sptam instance
   sptam::sptam_node sptam_node(nodeHandle, nodeHandle_private);
 
+  //ds set up working directory for trajectory saving
+  std::string working_directory(argv[0]);
+  const std::string::size_type index_separator(working_directory.find_last_of("/"));
+  working_directory = working_directory.substr(0, index_separator+1);
+  sptam_node.setWorkingDirectory(working_directory);
+  ROS_INFO("saving trajectories to: %s", working_directory.c_str());
+
   ros::spin();
 
   return 0;

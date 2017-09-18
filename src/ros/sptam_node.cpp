@@ -32,8 +32,6 @@
 #include "../sptam/FeatureExtractorThread.hpp"
 #include "../sptam/utils/projective_math.hpp"
 
-#include <opencv2/core/version.hpp>
-#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -41,14 +39,6 @@
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <image_geometry/pinhole_camera_model.h>
-
-#if CV_MAJOR_VERSION == 2
-  //ds no specifics
-#elif CV_MAJOR_VERSION == 3
-  #include <opencv2/xfeatures2d.hpp>
-#else
-  #error OpenCV version not supported
-#endif
 
 #ifdef SHOW_PROFILING
 
@@ -138,7 +128,56 @@ void setParameters( ros::NodeHandle& nodeHandle, cv::Ptr<cv::Algorithm>&& algori
     }
   }
 #else
-  //ds TODO port parameter parsing and setting to opencv3
+
+  //ds ugly dugly - hardcode all available opencv parameters so we can switch bomb it to the virtual methods
+  std::vector<std::string> parameters(4);
+  parameters[0] = "nfeatures";
+  parameters[1] = "minDistance";
+  parameters[2] = "qualityLevel";
+  parameters[3] = "useHarrisDetector";
+//  parameters[4] = "bytes";
+//  parameters[5] = "crossCheck";
+
+  //ds currently only the GFTT detector configuration is enabled
+  cv::Ptr<cv::GFTTDetector> detector = algorithm.dynamicCast<cv::GFTTDetector>();
+
+  //ds if the cast succeeded
+  if (detector) {
+
+    //ds for all feasible parameters
+    for (const std::string& parameter: parameters) {
+
+      //ds if the parameter is available in the ROS node
+      const std::string ros_parameter = base_name + "/" + parameter;
+      if (nodeHandle.hasParam(ros_parameter)) {
+
+        //ds call corresponding method
+        if (parameter == "nfeatures") {
+          int32_t value;
+          nodeHandle.getParam(ros_parameter, value);
+          std::cerr << " " << parameter << ": " << value << std::endl;
+          detector->setMaxFeatures(value);
+        } else if (parameter == "minDistance") {
+          double value;
+          nodeHandle.getParam(ros_parameter, value);
+          std::cerr << " " << parameter << ": " << value << std::endl;
+          detector->setMinDistance(value);
+        } else if (parameter == "qualityLevel") {
+          double value;
+          nodeHandle.getParam(ros_parameter, value);
+          std::cerr << " " << parameter << ": " << value << std::endl;
+          detector->setQualityLevel(value);
+        } else if (parameter == "useHarrisDetector") {
+          bool value;
+          nodeHandle.getParam(ros_parameter, value);
+          std::cerr << " " << parameter << ": " << value << std::endl;
+          detector->setHarrisDetector(value);
+        } else {
+          ROS_ERROR_STREAM("unknown/unsupported parameter type for");
+        }
+      }
+    }
+  }
 #endif
 }
 
@@ -306,7 +345,9 @@ sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
 
 sptam_node::~sptam_node()
 {
-  std::cerr << "sptam_node::~sptam_node|average processing time per frame (s): " << _processing_time_seconds/_number_of_frames_processed << std::endl;
+  if (_number_of_frames_processed > 0) {
+    std::cerr << "sptam_node::~sptam_node|average processing time per frame (s): " << _processing_time_seconds/_number_of_frames_processed << std::endl;
+  }
 
   ROS_INFO_STREAM("starting sptam node cleanup...");
 
@@ -566,11 +607,11 @@ void sptam_node::_writePoseToFile(const sensor_msgs::ImageConstPtr& image_left_)
 
   //ds open file streams - overwritting the first and afterwards otherwise
   if (_number_of_frames_processed == 1) {
-    outfile_trajectory_kitti.open("sptam_trajectory_kitti.txt", std::ifstream::out);
-    outfile_trajectory_tum.open("sptam_trajectory_tum.txt", std::ifstream::out);
+    outfile_trajectory_kitti.open(_working_directory + "sptam_trajectory_kitti.txt", std::ifstream::out);
+    outfile_trajectory_tum.open(_working_directory + "sptam_trajectory_tum.txt", std::ifstream::out);
   } else {
-    outfile_trajectory_kitti.open("sptam_trajectory_kitti.txt", std::ifstream::app);
-    outfile_trajectory_tum.open("sptam_trajectory_tum.txt", std::ifstream::app);
+    outfile_trajectory_kitti.open(_working_directory + "sptam_trajectory_kitti.txt", std::ifstream::app);
+    outfile_trajectory_tum.open(_working_directory + "sptam_trajectory_tum.txt", std::ifstream::app);
   }
   outfile_trajectory_kitti << std::fixed;
   outfile_trajectory_tum << std::fixed;

@@ -71,14 +71,14 @@ BundleDriver::BundleDriver(
 
   optimizer_.setForceStopFlag( &bundleAbortRequested_ );
 
-  //ds current g2o
-//  auto linearSolver = g2o::make_unique<g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>>();
-//  auto solver_ptr = g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
-//  g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
-
+  //ds check g2o version and instantiate solver components accordingly
+#ifdef G2O_USE_NEW_OWNERSHIP
+  auto linearSolver = g2o::make_unique<g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>>();
+  auto solver_ptr = g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
+  g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+#else
   // Higher converge velocity
-  g2o::BlockSolver_6_3::LinearSolverType* linearSolver
-    = new g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>();
+  g2o::BlockSolver_6_3::LinearSolverType* linearSolver = new g2o::LinearSolverPCG<g2o::BlockSolver_6_3::PoseMatrixType>();
 
   // Higher confident (better than CHOLMOD see paper: "3-D MappingWith an RGB-D Camera")
 //  g2o::BlockSolver_6_3::LinearSolverType* linearSolver
@@ -92,6 +92,7 @@ BundleDriver::BundleDriver(
 
   // choosing the method to use by optimizer
   g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( solver_ptr );
+#endif
 
   optimizer_.setAlgorithm(solver);
 
