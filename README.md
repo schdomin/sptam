@@ -8,7 +8,8 @@ We added 2 new CMake flags which have to be set at build time:
 
 `G2O_USE_NEW_OWNERSHIP` must be set to `OFF` in case an older version of g2o is used (previous to revision: 7828003).
 
-`USE_EUROC_CALIBRATION=ON` is required to enable proper processing of the EuRoC bag versions.
+`USE_EUROC_CALIBRATION=ON` is required to enable proper processing of the EuRoC bag versions. </br>
+An EuRoC launch file (euroc.launch) and configuration file (euroc.yaml) have been added.
 
 <hr>
 
