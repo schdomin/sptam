@@ -11,24 +11,28 @@ message("build type: '${CMAKE_BUILD_TYPE}'")
 
 # declare cache entry parameters
 SET(SHOW_TRACKED_FRAMES OFF CACHE BOOL "Enable/Disable OpenCV frame visualization for the tracker.")
-SET(SHOW_PROFILING ON CACHE BOOL "Enable/Disable Profiling of each step.")
+SET(SHOW_PROFILING OFF CACHE BOOL "Enable/Disable Profiling of each step.")
 SET(G2O_USE_NEW_OWNERSHIP ON CACHE BOOL "Enable/Disable new g2o ownership model (from revision: 7828003).")
-SET(USE_EUROC_CALIBRATION OFF CACHE BOOL "Enable/Disable hardcoded EuRoC calibration (ros bags do not contain camera info).")
+SET(USE_EUROC_CALIBRATION ON CACHE BOOL "Enable/Disable hardcoded EuRoC calibration (ros bags do not contain camera info).")
 
 if( SHOW_TRACKED_FRAMES )
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSHOW_TRACKED_FRAMES")
+  message("showing tracked frames")
 endif()
 
 if( SHOW_PROFILING )
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSHOW_PROFILING")
+  message("profiling enabled")
 endif()
 
 if(G2O_USE_NEW_OWNERSHIP)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DG2O_USE_NEW_OWNERSHIP")
+  message("using new g2o ownership model")
 endif()
 
 if(USE_EUROC_CALIBRATION)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_EUROC_CALIBRATION")
+  message("using internal EuRoC camera calibration")
 endif()
 
 ## Find catkin macros and libraries

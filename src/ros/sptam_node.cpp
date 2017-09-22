@@ -193,6 +193,11 @@ sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
   odom_to_map_(tf::Transform::getIdentity()),
   transform_thread_(nullptr)
 {
+  //ds notify when using euroc calibration
+#ifdef USE_EUROC_CALIBRATION
+  std::cerr << "using internal EuRoC camera calibration" << std::endl;
+#endif
+
   // Get node parameters
   nhp.param<std::string>("odom_frame", odom_frame_, "/odom");
   nhp.param<std::string>("base_link_frame", base_frame_, "/base_link");
@@ -210,7 +215,7 @@ sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     std::string detectorName;
     nhp.param<std::string>("FeatureDetector/Name", detectorName, "GFTT");
 
-    std::cout << "detector: " << detectorName << std::endl;
+    std::cerr << "detector: " << detectorName << std::endl;
 #if CV_MAJOR_VERSION == 2
     featureDetector_ = cv::FeatureDetector::create(detectorName);
 #else
@@ -228,7 +233,7 @@ sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     std::string extractorName;
     nhp.param<std::string>("DescriptorExtractor/Name", extractorName, "BRIEF");
 
-    std::cout << "extractor: " << extractorName << std::endl;
+    std::cerr << "extractor: " << extractorName << std::endl;
 #if CV_MAJOR_VERSION == 2
     descriptorExtractor_ = cv::DescriptorExtractor::create(extractorName);
 #else
@@ -246,7 +251,7 @@ sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
     std::string matcherName;
     nhp.param<std::string>("DescriptorMatcher/Name", matcherName, "BruteForce-Hamming");
 
-    std::cout << "matcher: " << matcherName << std::endl;
+    std::cerr << "matcher: " << matcherName << std::endl;
     mapper_params_.descriptorMatcher = cv::DescriptorMatcher::create( matcherName );
 
     if ( not mapper_params_.descriptorMatcher )

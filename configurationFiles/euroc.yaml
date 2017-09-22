@@ -2,7 +2,7 @@ FeatureDetector:
 
   Name: 'GFTT'
 
-  nfeatures: 1000
+  nfeatures: 2000
   minDistance: 7.0
   qualityLevel: 0.05
   useHarrisDetector: false
